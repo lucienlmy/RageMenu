@@ -89,9 +89,9 @@ FUNC BOOL MENU_IS_SAFE_TO_PROCESS()
     IF IS_PLAYER_SWITCH_IN_PROGRESS()
         RETURN FALSE
     ENDIF
-    IF NOT IS_CONTROL_ENABLED(FRONTEND_CONTROL, INPUT_FRONTEND_PAUSE_ALTERNATE) // Check if any in-game menu is open (this may have false positives).
+    /*IF NOT IS_CONTROL_ENABLED(FRONTEND_CONTROL, INPUT_FRONTEND_PAUSE_ALTERNATE) // Check if any in-game menu is open (this may have false positives).
         RETURN FALSE
-    ENDIF
+    ENDIF*/
     IF GET_IS_LOADING_SCREEN_ACTIVE()
         RETURN FALSE
     ENDIF
@@ -322,6 +322,20 @@ PROC MENU_SCALEFORM_DELETE()
     IF sMenuData.siScaleform <> NULL
         SET_SCALEFORM_MOVIE_AS_NO_LONGER_NEEDED(sMenuData.siScaleform)
         sMenuData.siScaleform = NULL
+    ENDIF
+ENDPROC
+
+PROC MENU_DELETE_TEXTURES()
+    SET_STREAMED_TEXTURE_DICT_AS_NO_LONGER_NEEDED("commonmenu")
+ENDPROC
+
+PROC MENU_DRAW_SPRITE(STRING sDictName, STRING sTextName, FLOAT fX, FLOAT fY, FLOAT fWidth, FLOAT fHeight, FLOAT fRot, INT iRed = 255, INT iGreen = 255, INT iBlue = 255, INT iAlpha = 255)
+    IF HAS_STREAMED_TEXTURE_DICT_LOADED(sDictName)
+        SET_TEXT_RENDER_ID(1)
+        SET_SCRIPT_GFX_DRAW_ORDER(4)
+        DRAW_SPRITE(sDictName, sTextName, fX, fY, fWidth, fHeight, fRot, iRed, iGreen, iBlue, iAlpha, FALSE, 0)
+    ELSE
+        REQUEST_STREAMED_TEXTURE_DICT(sDictName, FALSE)
     ENDIF
 ENDPROC
 
@@ -567,6 +581,47 @@ PROC MENU_DRAW_OPTION_FLOAT(STRING sLeft, FLOAT fRight, STRING sTooltip = NULL, 
     sMenuData.fYValue += 0.038
 ENDPROC
 
+PROC MENU_DRAW_OPTION_CHECKBOX(STRING sLeft, BOOL bRight, STRING sTooltip = NULL, BOOL bDisabled = FALSE)
+    IF NOT MENU_SHOULD_RENDER()
+        EXIT
+    ENDIF
+
+    MENU_COLOURS sColours
+    MENU_GET_COLOURS(sColours, bDisabled)
+
+    DRAW_RECT(sMenuData.fPosX, sMenuData.fYValue + 0.019, 0.21, 0.038, sColours.sRect.iRed, sColours.sRect.iGreen, sColours.sRect.iBlue, sColours.sRect.iAlpha, FALSE)
+
+    MENU_DRAW_TEXT_STRING(sLeft, sMenuData.fPosX - 0.10, (sMenuData.fYValue + 0.019) - (GET_RENDERED_CHARACTER_HEIGHT(0.33, 0) / 1.5), sColours.sText.iRed, sColours.sText.iGreen, sColours.sText.iBlue, sColours.sText.iAlpha)
+
+    IF NOT bDisabled
+        IF MENU_IS_FOCUSED()
+            IF bRight
+                MENU_DRAW_SPRITE("commonmenu", "shop_box_tickb", sMenuData.fPosX + 0.095, sMenuData.fYValue + (0.038 / 2), 0.04 / GET_ASPECT_RATIO(TRUE), 0.04, 0)
+            ELSE
+                MENU_DRAW_SPRITE("commonmenu", "shop_box_blank", sMenuData.fPosX + 0.095, sMenuData.fYValue + (0.038 / 2), 0.04 / GET_ASPECT_RATIO(TRUE), 0.04, 0, 40, 40, 40, 255)
+            ENDIF
+        ELSE
+            IF bRight
+                MENU_DRAW_SPRITE("commonmenu", "shop_box_tick", sMenuData.fPosX + 0.095, sMenuData.fYValue + (0.038 / 2), 0.04 / GET_ASPECT_RATIO(TRUE), 0.04, 0)
+            ELSE
+                MENU_DRAW_SPRITE("commonmenu", "shop_box_blank", sMenuData.fPosX + 0.095, sMenuData.fYValue + (0.038 / 2), 0.04 / GET_ASPECT_RATIO(TRUE), 0.04, 0)
+            ENDIF
+        ENDIF
+    ELSE
+        IF bRight
+            MENU_DRAW_SPRITE("commonmenu", "shop_box_tick", sMenuData.fPosX + 0.095, sMenuData.fYValue + (0.038 / 2), 0.04 / GET_ASPECT_RATIO(TRUE), 0.04, 0, 155, 155, 155, 255)
+        ELSE
+            MENU_DRAW_SPRITE("commonmenu", "shop_box_blank", sMenuData.fPosX + 0.095, sMenuData.fYValue + (0.038 / 2), 0.04 / GET_ASPECT_RATIO(TRUE), 0.04, 0, 155, 155, 155, 255)
+        ENDIF
+    ENDIF
+
+    IF MENU_IS_FOCUSED()
+        sMenuData.sToolTipText = sTooltip
+    ENDIF
+
+    sMenuData.fYValue += 0.038
+ENDPROC
+
 PROC MENU_DRAW_SLIDER_STRING(STRING sLeft, STRING sRight, STRING sTooltip = NULL, BOOL bDisabled = FALSE)
     IF NOT MENU_SHOULD_RENDER()
         EXIT
@@ -678,7 +733,7 @@ ENDFUNC
 FUNC BOOL MENU_CHECKBOX(STRING sText, BOOL& bChecked, STRING sTooltip = NULL, BOOL bDisabled = FALSE)
     BOOL bRetn = FALSE
 
-    MENU_DRAW_OPTION_STRING(sText, MATH_PICK_STRING(bChecked, "ON", "OFF"), sTooltip, bDisabled)
+    MENU_DRAW_OPTION_CHECKBOX(sText, bChecked, sTooltip, bDisabled)
     IF (MENU_IS_CLICKED(bDisabled))
         bChecked = NOT bChecked
         bRetn = TRUE
@@ -721,7 +776,7 @@ FUNC BOOL MENU_SLIDER_INTEGER(STRING sText, INT& iValue, INT iMin, INT iMax, STR
         ENDIF
         bRetn = TRUE
     ELIF (MENU_IS_DECREMENTED(bDisabled))
-        iValue += iStep
+        iValue -= iStep
         IF iValue < iMin
             iValue = iMax
         ENDIF
